@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>羊了个羊 · 三消小游戏</title>
+<title>爱你爱你爱你爱你爱你</title>
 <style>
   :root {
     --slot: clamp(34px, 9.2vw, 54px);
@@ -55,10 +55,13 @@
 
   .brand h1 {
     margin: 0;
+    min-width: 0;
     font-size: clamp(15px, 2.4vw, 20px);
     font-weight: 700;
     letter-spacing: .3px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .brand .sub {
@@ -306,8 +309,107 @@
     word-break: break-word;
   }
 
+  /* ---------- 通关告白卡片 ---------- */
+  #loveCard {
+    display: none;
+    margin: -8px 0 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(224, 96, 79, .18);
+  }
+
+  #loveCard.show { display: block; }
+
+  #loveCard .love-lines {
+    margin: 0;
+    color: #a4433a;
+    font-size: 13px;
+    line-height: 1.85;
+    white-space: pre-line;
+    word-break: break-word;
+  }
+
+  /* ---------- 三消情话浮层 ---------- */
+  .love-quote {
+    position: fixed;
+    left: 50%;
+    z-index: 70;
+    max-width: 86vw;
+    padding: 8px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .95);
+    color: #b3543f;
+    font-size: clamp(12px, 3.4vw, 15px);
+    line-height: 1.55;
+    text-align: center;
+    white-space: normal;
+    word-break: break-word;
+    box-shadow: 0 8px 22px rgba(70, 85, 120, .16);
+    transform: translate(-50%, 12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .32s ease, transform .32s ease;
+    will-change: transform, opacity;
+  }
+
+  .love-quote.in {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .love-quote.egg {
+    font-weight: 700;
+    color: #c8392b;
+    background: #fff7ef;
+    box-shadow: 0 8px 26px rgba(200, 57, 43, .22);
+    animation: love-heartbeat .9s ease .12s 1;
+  }
+
+  @keyframes love-heartbeat {
+    0%, 100% { transform: translate(-50%, 0) scale(1); }
+    35% { transform: translate(-50%, 0) scale(1.06); }
+    60% { transform: translate(-50%, 0) scale(.99); }
+  }
+
+  /* ---------- 通关粒子层 ---------- */
+  .love-particles {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .love-particle {
+    position: absolute;
+    top: -10vh;
+    will-change: transform, opacity;
+    animation-name: love-fall;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  .love-particle.heart {
+    width: auto !important;
+    height: auto !important;
+    line-height: 1;
+  }
+
+  @keyframes love-fall {
+    0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+    12% { opacity: 1; }
+    100% {
+      transform: translate3d(var(--drift, 0px), 118vh, 0) rotate(var(--spin, 240deg));
+      opacity: .85;
+    }
+  }
+
   @media (max-width: 480px) {
     .brand .sub { display: none; }
+  }
+
+  @media (max-width: 360px) {
+    .brand h1 { font-size: 14px; }
+    .card { padding: 22px 16px 18px; }
   }
 </style>
 </head>
@@ -337,6 +439,7 @@
   <div class="card">
     <h2 id="ovTitle">挑战成功</h2>
     <p id="ovDesc"></p>
+    <div id="loveCard"></div>
     <button class="btn primary" id="ovBtn" type="button">再来一局</button>
   </div>
 </div>
@@ -344,6 +447,34 @@
 <script>
 (function () {
   'use strict';
+
+  /* ================= 文案配置 ================= */
+  // 所有对外文案集中在此，改这一处即可换主题
+  var LOVE_CONFIG = {
+    title: '开心消消乐',
+    subtitle: '嗨皮嗨皮',
+    cardLines: [
+      '谢谢你陪我又走过一年。',
+      '愿你每次打开这个页面，都记得有人一直在你身边。'
+    ],
+    quotes: [
+      '遇见你，是我最好的一次洗牌。',
+      '你一笑，我这边就全消了。',
+      '三张能消，喜欢你的心消不掉。',
+      '今天也想多陪你一局。',
+      '遇见你之后，很多事我都想慢慢来，像一张一张消。',
+      '洗牌是随机的，你在身边这件事，我不想随机。',
+      '我这边还差一张，你笑一下，刚好。',
+      '有些牌压着看不见，但有些人在旁边，心就定了。',
+      '移出三张能救一局，你一句“在呢”能救我一天。',
+      '牌消不消随它，你别皱眉就行。',
+      '洗牌洗的是牌，不是我一看见你就乱掉的顺序。',
+      '我留着最后一张，不是等通关，是等你。',
+      '你的名字，是我最想留到最后的牌。'
+    ],
+    eggImage: '9.png',
+    eggText: '嘘，这张牌下面藏着一句话：余生请多指教。'
+  };
 
   /* ================= 常量 ================= */
   var TILE = 64;          // 单张牌尺寸
@@ -374,6 +505,7 @@
     ovTitle: document.getElementById('ovTitle'),
     ovDesc: document.getElementById('ovDesc'),
     ovBtn: document.getElementById('ovBtn'),
+    loveCard: document.getElementById('loveCard'),
     loading: document.getElementById('loading')
   };
 
@@ -388,7 +520,8 @@
     over: true,
     animating: false,
     startedAt: 0,
-    cleared: 0
+    cleared: 0,
+    eggDone: false
   };
 
   /* ================= 工具 ================= */
@@ -407,6 +540,142 @@
     var w = Math.min(a.x + TILE, b.x + TILE) - Math.max(a.x, b.x);
     var h = Math.min(a.y + TILE, b.y + TILE) - Math.max(a.y, b.y);
     return (w > 0 && h > 0) ? w * h : 0;
+  }
+
+  /* ================= 文案与情绪反馈 ================= */
+  // 非空字符串才使用配置值，否则回退到默认值
+  function pickText(value, fallback) {
+    return (typeof value === 'string' && value.trim()) ? value : fallback;
+  }
+
+  // 随机取一条情话；配置为空或不是数组时返回空串
+  function pickQuote() {
+    var list = Array.isArray(LOVE_CONFIG.quotes) ? LOVE_CONFIG.quotes : [];
+    var pool = list.filter(function (q) { return typeof q === 'string' && q.trim(); });
+    if (!pool.length) return '';
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  function applyBrand() {
+    var h1 = document.querySelector('.brand h1');
+    var sub = document.querySelector('.brand .sub');
+    if (h1) h1.textContent = pickText(LOVE_CONFIG.title, h1.textContent);
+    if (sub) sub.textContent = pickText(LOVE_CONFIG.subtitle, sub.textContent);
+    document.title = pickText(LOVE_CONFIG.title, document.title);
+  }
+
+  // 告白卡片内容来自配置，逐行渲染
+  function renderLoveCard() {
+    if (!dom.loveCard) return;
+    var list = Array.isArray(LOVE_CONFIG.cardLines) ? LOVE_CONFIG.cardLines : [];
+    var lines = list.filter(function (line) { return typeof line === 'string' && line.trim(); });
+    dom.loveCard.innerHTML = '';
+    if (!lines.length) return;
+
+    var box = document.createElement('div');
+    box.className = 'love-lines';
+    box.textContent = lines.join('\n');
+    dom.loveCard.appendChild(box);
+  }
+
+  function toggleLoveCard(show) {
+    if (!dom.loveCard) return;
+    dom.loveCard.classList.toggle('show', !!show);
+  }
+
+  var quoteEl = null;
+  var quoteTimer = 0;
+  var quoteLeaveTimer = 0;
+
+  function clearQuote() {
+    if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = 0; }
+    if (quoteLeaveTimer) { clearTimeout(quoteLeaveTimer); quoteLeaveTimer = 0; }
+    if (quoteEl) {
+      if (quoteEl.parentNode) quoteEl.parentNode.removeChild(quoteEl);
+      quoteEl = null;
+    }
+  }
+
+  // 槽位上方浮出一条情话；variant 为 'egg' 时使用彩蛋样式
+  function showQuote(text, variant) {
+    if (typeof text !== 'string' || !text.trim()) return;
+    clearQuote();
+
+    var el = document.createElement('div');
+    el.className = 'love-quote' + (variant === 'egg' ? ' egg' : '');
+    el.textContent = text;
+    document.body.appendChild(el);
+
+    var top = dom.slots.getBoundingClientRect().top - 132;
+    el.style.top = Math.round(Math.max(8, top)) + 'px';
+
+    quoteEl = el;
+    // 先让初始样式落地，再切到终态，保证淡入上浮过渡生效
+    void el.offsetWidth;
+    el.classList.add('in');
+
+    quoteTimer = setTimeout(function () {
+      quoteTimer = 0;
+      el.classList.remove('in');
+      quoteLeaveTimer = setTimeout(function () {
+        quoteLeaveTimer = 0;
+        if (el.parentNode) el.parentNode.removeChild(el);
+        if (quoteEl === el) quoteEl = null;
+      }, 360);
+    }, 1600);
+  }
+
+  // 被清除的牌是否为彩蛋图（忽略大小写与空格）
+  function isEggTile(url) {
+    var name = pickText(LOVE_CONFIG.eggImage, '');
+    if (!name) return false;
+    var file = String(url || '').split('/').pop().replace(/\s+/g, '').toLowerCase();
+    return file === name.replace(/\s+/g, '').toLowerCase();
+  }
+
+  // 通关彩带/爱心粒子，结束即移除；偏好减少动效时跳过
+  function celebrate() {
+    if (prefersReducedMotion()) return;
+
+    var layer = document.createElement('div');
+    layer.className = 'love-particles';
+    var colors = ['#e0604f', '#f0a04b', '#e8c547', '#d96b8a', '#f6b26b'];
+    var frag = document.createDocumentFragment();
+
+    for (var i = 0; i < 32; i++) {
+      var p = document.createElement('span');
+      var heart = i % 6 === 0;
+      var color = colors[i % colors.length];
+      var size = randInt(heart ? 13 : 6, heart ? 19 : 11);
+
+      p.className = 'love-particle' + (heart ? ' heart' : '');
+      if (heart) {
+        p.textContent = '♥';
+        p.style.color = color;
+        p.style.fontSize = size + 'px';
+      } else {
+        p.style.width = size + 'px';
+        p.style.height = randInt(13, 21) + 'px';
+        p.style.background = color;
+        p.style.borderRadius = '2px';
+      }
+      p.style.left = (Math.random() * 100).toFixed(2) + '%';
+      p.style.animationDuration = randInt(1800, 2600) + 'ms';
+      p.style.animationDelay = (Math.random() * 400).toFixed(0) + 'ms';
+      p.style.setProperty('--drift', randInt(-70, 70) + 'px');
+      p.style.setProperty('--spin', randInt(-480, 480) + 'deg');
+      frag.appendChild(p);
+    }
+
+    layer.appendChild(frag);
+    document.body.appendChild(layer);
+    setTimeout(function () {
+      if (layer.parentNode) layer.parentNode.removeChild(layer);
+    }, 3200);
   }
 
   /* ================= 图片素材发现 ================= */
@@ -685,9 +954,12 @@
     state.animating = false;
     state.slots = [];
     state.cleared = 0;
+    state.eggDone = false;
     state.startedAt = performance.now();
 
     hideOverlay();
+    toggleLoveCard(false);
+    clearQuote();
     dom.loading.classList.add('hide');
 
     var types = pickTypes(library);
@@ -789,6 +1061,15 @@
       state.cleared += 1;
       state.animating = false;
       renderSlots(true);
+
+      // 三消成功后冒一条情话；彩蛋图优先，且每局只触发一次
+      if (!state.eggDone && isEggTile(url)) {
+        state.eggDone = true;
+        showQuote(pickText(LOVE_CONFIG.eggText, ''), 'egg');
+      } else {
+        showQuote(pickQuote());
+      }
+
       afterSettle();
     }, 210);
   }
@@ -806,8 +1087,11 @@
     var seconds = Math.max(1, Math.round((performance.now() - state.startedAt) / 1000));
 
     if (win) {
-      showOverlay('挑战成功', '用时 ' + seconds + ' 秒，全部消除完成。', '再来一局', startGame);
+      showOverlay('挑战成功', '用时 ' + seconds + ' 秒，全部消除完成。\n纪念日快乐', '再来一局', startGame);
+      toggleLoveCard(true);
+      celebrate();
     } else {
+      toggleLoveCard(false);
       showOverlay(
         '槽位已满',
         '没有可以立即消除的三张同图了。\n本局已消除 ' + state.cleared + ' 组。',
@@ -873,6 +1157,12 @@
     state.animating = false;
     state.tiles = [];
     state.slots = [];
+    state.eggDone = false;
+
+    applyBrand();
+    renderLoveCard();
+    toggleLoveCard(false);
+    clearQuote();
 
     dom.board.innerHTML = '';
     dom.remain.textContent = String(TOTAL);
