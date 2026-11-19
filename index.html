@@ -136,17 +136,17 @@
   .board-wrap {
     position: relative;
     width: 100%;
-    max-width: 404px;
-    height: 336px;
+    max-width: 438px;
+    height: 370px;
   }
 
   .board {
     position: absolute;
     top: 0;
     left: 50%;
-    margin-left: -202px;
-    width: 404px;
-    height: 336px;
+    margin-left: -219px;
+    width: 438px;
+    height: 370px;
     transform-origin: top center;
   }
 
@@ -171,17 +171,27 @@
     pointer-events: none;
   }
 
-  /* 层号越高越亮，体现堆叠关系 */
-  .tile[data-layer="0"] { filter: brightness(.94); }
-  .tile[data-layer="1"] { filter: brightness(1); }
+  /* 可点击的牌整体提亮，层号越高越亮，体现堆叠关系 */
+  .tile[data-layer="0"] { filter: brightness(1); }
+  .tile[data-layer="1"] { filter: brightness(1.05); }
   .tile[data-layer="2"] {
-    filter: brightness(1.04);
+    filter: brightness(1.09);
     box-shadow: 0 5px 12px rgba(60, 72, 100, .20), 0 1px 2px rgba(60, 72, 100, .12);
   }
 
+  /* 被压住的牌轻度压暗，既好区分又不至于发黑 */
   .tile.blocked {
-    opacity: .55;
+    opacity: .95;
+    filter: brightness(.85) saturate(.8);
     cursor: not-allowed;
+  }
+
+  .tile.blocked::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    background: rgba(20, 30, 48, .24);
   }
 
   .tile.taken {
@@ -339,18 +349,18 @@
   var TILE = 64;          // 单张牌尺寸
   var GAP = 4;            // 牌间距
   var PITCH = TILE + GAP; // 步距 68
-  var BOARD_W = 404;
-  var BOARD_H = 336;
+  var GRID_COLS = 6;      // 每层可用格位 6 × 5
+  var GRID_ROWS = 5;
+  var MARGIN_X = 17;      // 给随机错位预留的边距
+  var MARGIN_Y = 17;
+  var JITTER = 8;         // 单张牌的随机抖动幅度
+  var BOARD_W = MARGIN_X * 2 + (GRID_COLS - 1) * PITCH + TILE; // 438
+  var BOARD_H = MARGIN_Y * 2 + (GRID_ROWS - 1) * PITCH + TILE; // 370
+  var LAYER_COUNTS = [24, 20, 16]; // 三层牌数，合计 60
+  var BLOCK_RATIO = 0.3;  // 被上层覆盖超过该比例才算"被压住"
   var SLOT_COUNT = 7;
   var TOTAL = 60;
   var EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
-
-  // 三层牌堆，偏移依次半格/一格错位
-  var LAYERS = [
-    { cols: 6, rows: 4, ox: 0, oy: 0 },
-    { cols: 5, rows: 4, ox: 34, oy: 34 },
-    { cols: 4, rows: 4, ox: 68, oy: 68 }
-  ];
 
   /* ================= DOM ================= */
   var dom = {
@@ -392,9 +402,11 @@
     return arr;
   }
 
-  function overlaps(a, b) {
-    return Math.min(a.x + TILE, b.x + TILE) - Math.max(a.x, b.x) > 0 &&
-           Math.min(a.y + TILE, b.y + TILE) - Math.max(a.y, b.y) > 0;
+  // 两张牌的重叠面积（像素平方）
+  function overlapArea(a, b) {
+    var w = Math.min(a.x + TILE, b.x + TILE) - Math.max(a.x, b.x);
+    var h = Math.min(a.y + TILE, b.y + TILE) - Math.max(a.y, b.y);
+    return (w > 0 && h > 0) ? w * h : 0;
   }
 
   /* ================= 图片素材发现 ================= */
@@ -468,21 +480,65 @@
   }
 
   /* ================= 发牌 ================= */
-  function buildPositions() {
-    var list = [];
-    for (var l = 0; l < LAYERS.length; l++) {
-      var cfg = LAYERS[l];
-      for (var r = 0; r < cfg.rows; r++) {
-        for (var c = 0; c < cfg.cols; c++) {
-          list.push({
-            layer: l,
-            x: cfg.ox + c * PITCH,
-            y: cfg.oy + r * PITCH
-          });
-        }
+  function randInt(min, max) {
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
+  function clamp(v, lo, hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
+  // 同层牌不允许明显重叠（1px 内的贴合误差视为不重叠）
+  function overlapsAny(rect, list) {
+    for (var i = 0; i < list.length; i++) {
+      var o = list[i];
+      if (Math.min(rect.x + TILE, o.x + TILE) - Math.max(rect.x, o.x) > 1 &&
+          Math.min(rect.y + TILE, o.y + TILE) - Math.max(rect.y, o.y) > 1) {
+        return true;
       }
     }
-    return list;
+    return false;
+  }
+
+  // 每层在 6×5 格位中随机取子集，再叠加随机错位与抖动，保证每局结构不同
+  function generateLayout() {
+    var cells = [];
+    for (var r = 0; r < GRID_ROWS; r++) {
+      for (var c = 0; c < GRID_COLS; c++) {
+        cells.push({ c: c, r: r });
+      }
+    }
+
+    var offsets = [-MARGIN_X, 0, MARGIN_X];
+    var layout = [];
+
+    for (var l = 0; l < LAYER_COUNTS.length; l++) {
+      var ox = offsets[randInt(0, offsets.length - 1)];
+      var oy = offsets[randInt(0, offsets.length - 1)];
+      var order = shuffle(cells.slice());
+      var placed = [];
+
+      for (var k = 0; k < LAYER_COUNTS[l]; k++) {
+        var cell = order[k];
+        var baseX = MARGIN_X + ox + cell.c * PITCH;
+        var baseY = MARGIN_Y + oy + cell.r * PITCH;
+        var pos = { x: baseX, y: baseY };
+
+        // 多次尝试抖动位置，避开同层明显重叠；都失败则退回格位原位
+        for (var t = 0; t < 12; t++) {
+          var cand = {
+            x: clamp(baseX + randInt(-JITTER, JITTER), 0, BOARD_W - TILE),
+            y: clamp(baseY + randInt(-JITTER, JITTER), 0, BOARD_H - TILE)
+          };
+          if (!overlapsAny(cand, placed)) { pos = cand; break; }
+        }
+
+        placed.push(pos);
+        layout.push({ layer: l, x: pos.x, y: pos.y });
+      }
+    }
+
+    return layout;
   }
 
   function pickTypes(pool) {
@@ -501,7 +557,7 @@
     }
     shuffle(urls);
 
-    var positions = buildPositions();
+    var positions = generateLayout();
     var tiles = [];
     for (var i = 0; i < positions.length; i++) {
       var p = positions[i];
@@ -549,12 +605,14 @@
     var live = state.tiles.filter(function (t) { return !t.removed; });
     for (var i = 0; i < live.length; i++) {
       var t = live[i];
-      var blocked = false;
+      // 只有被更高层的牌覆盖到一定面积才算被压住，避免 1~2px 细边造成"看着没压却点不动"
+      var covered = 0;
       for (var j = 0; j < live.length; j++) {
         var other = live[j];
         if (other.layer <= t.layer) continue;
-        if (overlaps(t, other)) { blocked = true; break; }
+        covered += overlapArea(t, other);
       }
+      var blocked = covered / (TILE * TILE) >= BLOCK_RATIO;
       t.blocked = blocked;
       if (t.el) t.el.classList.toggle('blocked', blocked);
     }
