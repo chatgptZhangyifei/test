@@ -158,6 +158,7 @@
     width: 64px;
     height: 64px;
     border-radius: 14px;
+    border: 3px solid var(--tile-color, #e4e9f2);
     background: #fff;
     cursor: pointer;
     box-shadow: 0 2px 5px rgba(60, 72, 100, .16), 0 1px 2px rgba(60, 72, 100, .10);
@@ -169,8 +170,28 @@
     display: block;
     width: 100%;
     height: 100%;
-    border-radius: 14px;
+    border-radius: 10px;
     object-fit: cover;
+    pointer-events: none;
+  }
+
+  /* 角标编号：颜色 + 数字双重区分，避免相似照片混在一起 */
+  .tile-no {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 3px;
+    border-radius: 9px;
+    background: var(--tile-color, #5b8def);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 1px 3px rgba(20, 30, 48, .35);
     pointer-events: none;
   }
 
@@ -254,6 +275,22 @@
     height: 100%;
     border-radius: 11px;
     object-fit: cover;
+  }
+
+  .slot-tile {
+    border: 2px solid var(--tile-color, transparent);
+    border-radius: 11px;
+  }
+
+  .slot-tile .tile-no {
+    right: 0;
+    bottom: 0;
+    min-width: 13px;
+    height: 13px;
+    padding: 0 2px;
+    border-radius: 7px;
+    font-size: 9px;
+    line-height: 13px;
   }
 
   .slot-tile.vanish {
@@ -489,6 +526,11 @@
   var BOARD_H = MARGIN_Y * 2 + (GRID_ROWS - 1) * PITCH + TILE; // 370
   var LAYER_COUNTS = [24, 20, 16]; // 三层牌数，合计 60
   var BLOCK_RATIO = 0.01; // 被上层覆盖超过该比例才算"被压住"
+  // 每种图片的标识色，按图片顺序循环分配，照片相似时靠颜色 + 编号区分
+  var TYPE_COLORS = [
+    '#ef6f6c', '#f2a541', '#e3bf1f', '#4caf50', '#1fb5a8',
+    '#3f8efc', '#6b6fe0', '#b06ae0', '#e0699d'
+  ];
   var SLOT_COUNT = 7;
   var TOTAL = 60;
   var EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
@@ -521,7 +563,8 @@
     animating: false,
     startedAt: 0,
     cleared: 0,
-    eggDone: false
+    eggDone: false,
+    meta: {}         // 图片 url -> { no, color }
   };
 
   /* ================= 工具 ================= */
@@ -844,6 +887,18 @@
     return tiles;
   }
 
+  // 为每种图片分配编号与标识色，整局保持一致
+  function buildTypeMeta(types) {
+    var map = {};
+    for (var i = 0; i < types.length; i++) {
+      map[types[i]] = {
+        no: i + 1,
+        color: TYPE_COLORS[i % TYPE_COLORS.length]
+      };
+    }
+    return map;
+  }
+
   function renderTiles(tiles) {
     var frag = document.createDocumentFragment();
     for (var i = 0; i < tiles.length; i++) {
@@ -856,11 +911,24 @@
       node.style.top = t.y + 'px';
       node.style.zIndex = String(10 + t.layer * 100 + i);
 
+      var meta = state.meta[t.url];
+      if (meta) {
+        node.style.setProperty('--tile-color', meta.color);
+      }
+
       var img = document.createElement('img');
       img.src = t.url;
       img.alt = '';
       img.draggable = false;
       node.appendChild(img);
+
+      if (meta) {
+        var no = document.createElement('span');
+        no.className = 'tile-no';
+        no.textContent = String(meta.no);
+        no.setAttribute('aria-hidden', 'true');
+        node.appendChild(no);
+      }
 
       t.el = node;
       frag.appendChild(node);
@@ -906,11 +974,22 @@
         var box = document.createElement('div');
         box.className = 'slot-tile';
         box.dataset.id = String(item.id);
+        var slotMeta = state.meta[item.url];
+        if (slotMeta) {
+          box.style.setProperty('--tile-color', slotMeta.color);
+        }
         var img = document.createElement('img');
         img.src = item.url;
         img.alt = '';
         img.draggable = false;
         box.appendChild(img);
+        if (slotMeta) {
+          var slotNo = document.createElement('span');
+          slotNo.className = 'tile-no';
+          slotNo.textContent = String(slotMeta.no);
+          slotNo.setAttribute('aria-hidden', 'true');
+          box.appendChild(slotNo);
+        }
         cell.appendChild(box);
       }
       dom.slots.appendChild(cell);
@@ -967,6 +1046,7 @@
       showNoImage();
       return;
     }
+    state.meta = buildTypeMeta(types);
 
     state.tiles = buildTiles(types);
     renderTiles(state.tiles);
