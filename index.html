@@ -158,7 +158,7 @@
     width: var(--tile, 76px);
     height: var(--tile, 76px);
     border-radius: 14px;
-    border: 3px solid var(--tile-color, #e4e9f2);
+    border: 4px solid var(--tile-color, #e4e9f2);
     background: #fff;
     cursor: pointer;
     box-shadow: 0 2px 5px rgba(60, 72, 100, .16), 0 1px 2px rgba(60, 72, 100, .10);
@@ -185,7 +185,7 @@
     padding: 0 3px;
     border-radius: 9px;
     background: var(--tile-color, #5b8def);
-    color: #fff;
+    color: var(--tile-ink, #fff);
     font-size: 11px;
     font-weight: 700;
     line-height: 17px;
@@ -280,7 +280,7 @@
   }
 
   .slot-tile {
-    border: 2px solid var(--tile-color, transparent);
+    border: 3px solid var(--tile-color, transparent);
     border-radius: 11px;
   }
 
@@ -530,10 +530,10 @@
   // 牌面尺寸由 JS 常量统一控制，避免 CSS 与布局计算不一致
   document.documentElement.style.setProperty('--tile', TILE + 'px');
   var BLOCK_RATIO = 0.01; // 被上层覆盖超过该比例才算"被压住"
-  // 每种图片的标识色，按图片顺序循环分配，照片相似时靠颜色 + 编号区分
+  // 每种图片的标识色，按图片顺序循环分配；前 6 色刻意拉开色相与明度，相似照片也能一眼区分
   var TYPE_COLORS = [
-    '#ef6f6c', '#f2a541', '#e3bf1f', '#4caf50', '#1fb5a8',
-    '#3f8efc', '#6b6fe0', '#b06ae0', '#e0699d'
+    '#E42313', '#0B63F6', '#12A150', '#F5B700', '#9C27B0', '#111827',
+    '#00B8D4', '#FF6D00', '#C2185B'
   ];
   var SLOT_COUNT = 7;
   var TOTAL = 60;
@@ -892,6 +892,15 @@
     return tiles;
   }
 
+  // 角标文字颜色随底色明暗切换，保证黄、黑这类极端底色上都能看清数字
+  function inkFor(hex) {
+    var r = parseInt(hex.substr(1, 2), 16);
+    var g = parseInt(hex.substr(3, 2), 16);
+    var b = parseInt(hex.substr(5, 2), 16);
+    var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.65 ? '#1a1a1a' : '#ffffff';
+  }
+
   // 为每种图片分配编号与标识色，整局保持一致
   function buildTypeMeta(types) {
     var map = {};
@@ -919,6 +928,7 @@
       var meta = state.meta[t.url];
       if (meta) {
         node.style.setProperty('--tile-color', meta.color);
+        node.style.setProperty('--tile-ink', inkFor(meta.color));
       }
 
       var img = document.createElement('img');
@@ -982,6 +992,7 @@
         var slotMeta = state.meta[item.url];
         if (slotMeta) {
           box.style.setProperty('--tile-color', slotMeta.color);
+          box.style.setProperty('--tile-ink', inkFor(slotMeta.color));
         }
         var img = document.createElement('img');
         img.src = item.url;
