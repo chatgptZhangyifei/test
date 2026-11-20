@@ -533,6 +533,7 @@
   ];
   var SLOT_COUNT = 7;
   var TOTAL = 60;
+  var MAX_TYPES = 6;  // 每局使用的图片种类数（不超过素材数量），调大则更难分辨
   var EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 
   /* ================= DOM ================= */
@@ -856,8 +857,8 @@
   function pickTypes(pool) {
     var uniq = Array.from(new Set(pool));
     if (!uniq.length) return [];
-    shuffle(uniq);
-    return uniq.slice(0, Math.min(20, uniq.length));
+    // 固定取前 MAX_TYPES 种，颜色与编号跨局保持一致；想换种类就调整图片文件名顺序
+    return uniq.slice(0, Math.min(MAX_TYPES, uniq.length));
   }
 
   // 20 组三元组按轮转分配给图片种类，保证每种数量都是 3 的倍数且尽量平均
