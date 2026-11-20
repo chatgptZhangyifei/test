@@ -155,8 +155,8 @@
 
   .tile {
     position: absolute;
-    width: 64px;
-    height: 64px;
+    width: var(--tile, 76px);
+    height: var(--tile, 76px);
     border-radius: 14px;
     border: 3px solid var(--tile-color, #e4e9f2);
     background: #fff;
@@ -197,8 +197,10 @@
 
   /* 可点击的牌整体提亮，层号越高越亮，体现堆叠关系 */
   .tile[data-layer="0"] { filter: brightness(1); }
-  .tile[data-layer="1"] { filter: brightness(1.05); }
-  .tile[data-layer="2"] {
+  .tile[data-layer="1"] { filter: brightness(1.03); }
+  .tile[data-layer="2"] { filter: brightness(1.05); }
+  .tile[data-layer="3"] { filter: brightness(1.07); }
+  .tile[data-layer="4"] {
     filter: brightness(1.09);
     box-shadow: 0 5px 12px rgba(60, 72, 100, .20), 0 1px 2px rgba(60, 72, 100, .12);
   }
@@ -514,17 +516,19 @@
   };
 
   /* ================= 常量 ================= */
-  var TILE = 64;          // 单张牌尺寸
+  var TILE = 76;          // 单张牌尺寸
   var GAP = 4;            // 牌间距
-  var PITCH = TILE + GAP; // 步距 68
-  var GRID_COLS = 6;      // 每层可用格位 6 × 5
+  var PITCH = TILE + GAP; // 步距 80
+  var GRID_COLS = 5;      // 每层可用格位 5 × 5
   var GRID_ROWS = 5;
   var MARGIN_X = 17;      // 给随机错位预留的边距
   var MARGIN_Y = 17;
   var JITTER = 8;         // 单张牌的随机抖动幅度
-  var BOARD_W = MARGIN_X * 2 + (GRID_COLS - 1) * PITCH + TILE; // 438
-  var BOARD_H = MARGIN_Y * 2 + (GRID_ROWS - 1) * PITCH + TILE; // 370
-  var LAYER_COUNTS = [24, 20, 16]; // 三层牌数，合计 60
+  var BOARD_W = MARGIN_X * 2 + (GRID_COLS - 1) * PITCH + TILE; // 430
+  var BOARD_H = MARGIN_Y * 2 + (GRID_ROWS - 1) * PITCH + TILE; // 430
+  var LAYER_COUNTS = [12, 12, 12, 12, 12]; // 五层牌数，合计 60
+  // 牌面尺寸由 JS 常量统一控制，避免 CSS 与布局计算不一致
+  document.documentElement.style.setProperty('--tile', TILE + 'px');
   var BLOCK_RATIO = 0.01; // 被上层覆盖超过该比例才算"被压住"
   // 每种图片的标识色，按图片顺序循环分配，照片相似时靠颜色 + 编号区分
   var TYPE_COLORS = [
